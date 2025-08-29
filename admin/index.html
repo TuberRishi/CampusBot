@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CollegeBot Admin Panel</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f0f2f5; margin: 0; padding: 20px; }
+        .container { max-width: 800px; margin: auto; }
+        .card { background-color: #fff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin-bottom: 25px; }
+        h1, h2 { color: #333; }
+        p { color: #666; }
+        .upload-form input[type="file"] { border: 2px dashed #007bff; border-radius: 8px; padding: 30px; width: 100%; box-sizing: border-box; cursor: pointer; transition: background-color 0.2s; }
+        .upload-form input[type="file"]:hover { background-color: #f0f8ff; }
+        .upload-form button { background-color: #007bff; color: white; border: none; border-radius: 8px; padding: 12px 25px; margin-top: 20px; cursor: pointer; font-size: 1rem; font-weight: 600; }
+        .doc-list { list-style: none; padding: 0; }
+        .doc-item { display: flex; justify-content: space-between; align-items: center; padding: 15px; border-bottom: 1px solid #eee; }
+        .doc-item:last-child { border-bottom: none; }
+        .doc-name { font-weight: 500; }
+        .delete-btn { background-color: #dc3545; color: white; border: none; border-radius: 6px; padding: 8px 15px; cursor: pointer; font-size: 0.9rem; }
+        .message { margin-top: 20px; font-weight: 500; padding: 10px; border-radius: 6px; }
+        .success { color: #155724; background-color: #d4edda; border: 1px solid #c3e6cb; }
+        .error { color: #721c24; background-color: #f8d7da; border: 1px solid #f5c6cb; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Admin Panel</h1>
+        
+        <div class="card">
+            <h2>Upload New Document</h2>
+            <p>Upload a new PDF document to the chatbot's knowledge base.</p>
+            <form id="upload-form" class="upload-form">
+                <input type="file" id="pdf-file" name="file" accept=".pdf" required>
+                <button type="submit">Upload Document</button>
+            </form>
+            <div id="upload-message-area" class="message" style="display:none;"></div>
+        </div>
+
+        <div class="card">
+            <h2>Manage Knowledge Base</h2>
+            <p>View and remove documents currently in the system.</p>
+            <ul id="doc-list" class="doc-list">
+                <!-- Document items will be dynamically inserted here -->
+                <li>Loading documents...</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // All the JavaScript logic to interact with the backend will go here.
+        // We will add the logic for listing and deleting documents in the next step.
+    </script>
+</body>
+</html>

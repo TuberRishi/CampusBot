@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CollegeBot Assistant</title>
+    <!-- Link to the CSS file for styling -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Main container for the chat widget -->
+    <div class="chat-container">
+        <!-- Header section of the chat window -->
+        <div class="chat-header">
+            <h2>CollegeBot Assistant</h2>
+            <p>Your friendly AI-powered guide</p>
+        </div>
+        <!-- Area where chat messages will be displayed -->
+        <div class="chat-messages" id="chat-messages">
+            <!-- Initial welcome message from the bot -->
+            <div class="message bot-message">
+                <p>Hello! I'm CollegeBot. How can I help you today? Please ask me about the document I have been trained on.</p>
+            </div>
+        </div>
+        <!-- The form for user input -->
+        <form class="chat-input-form" id="chat-form">
+            <input type="text" id="user-input" class="chat-input" placeholder="Ask a question..." autocomplete="off" required>
+            <button type="submit" class="send-button">Send</button>
+        </form>
+    </div>
+
+    <!-- Link to the JavaScript file for functionality -->
+    <!-- The 'defer' attribute ensures the script runs after the HTML is fully loaded -->
+    <script src="script.js" defer></script>
+</body>
+</html>

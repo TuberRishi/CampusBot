@@ -1,0 +1,14 @@
+pypdf
+langchain_text_splitters
+chromadb
+numpy
+langchain_huggingface
+langchain
+sentence-transformers
+torch
+langchain-community
+torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+fastapi 
+"uvicorn[standard]" 
+pydantic
+python-multipart
