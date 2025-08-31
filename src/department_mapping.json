@@ -1,0 +1,57 @@
+{
+  "admissions": {
+    "name": "Admissions Office",
+    "email": "admissions@examplecollege.edu",
+    "location": "Main Building, Room 101"
+  },
+  "admission": {
+    "name": "Admissions Office",
+    "email": "admissions@examplecollege.edu",
+    "location": "Main Building, Room 101"
+  },
+  "fees": {
+    "name": "Finance Office",
+    "email": "finance@examplecollege.edu",
+    "location": "Admin Block, Room 204"
+  },
+  "fee": {
+    "name": "Finance Office",
+    "email": "finance@examplecollege.edu",
+    "location": "Admin Block, Room 204"
+  },
+  "payment": {
+    "name": "Finance Office",
+    "email": "finance@examplecollege.edu",
+    "location": "Admin Block, Room 204"
+  },
+  "exams": {
+    "name": "Examinations Department",
+    "email": "exams@examplecollege.edu",
+    "location": "Admin Block, Room 208"
+  },
+  "examination": {
+    "name": "Examinations Department",
+    "email": "exams@examplecollege.edu",
+    "location": "Admin Block, Room 208"
+  },
+  "results": {
+    "name": "Examinations Department",
+    "email": "exams@examplecollege.edu",
+    "location": "Admin Block, Room 208"
+  },
+  "hostel": {
+    "name": "Hostel Affairs Office",
+    "email": "hostel@examplecollege.edu",
+    "location": "Student Center, Room 5"
+  },
+  "library": {
+    "name": "Central Library",
+    "email": "library@examplecollege.edu",
+    "location": "Library Building"
+  },
+  "default": {
+    "name": "Student Support Office",
+    "email": "support@examplecollege.edu",
+    "location": "Main Building, Room 10"
+  }
+}
