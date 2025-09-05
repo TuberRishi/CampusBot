@@ -12,9 +12,22 @@ def setup_database():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
 
-    # Drop the table if it already exists to ensure a clean setup
+    # Drop the tables if they already exist to ensure a clean setup
+    cursor.execute("DROP TABLE IF EXISTS students")
     cursor.execute(f"DROP TABLE IF EXISTS {TABLE_NAME}")
-    print(f"Dropped existing table '{TABLE_NAME}' (if any).")
+    print("Dropped existing tables (if any).")
+
+    # Create the students table
+    create_students_table_sql = """
+    CREATE TABLE students (
+        student_id TEXT PRIMARY KEY NOT NULL,
+        student_name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        major TEXT
+    );
+    """
+    cursor.execute(create_students_table_sql)
+    print("Table 'students' created successfully.")
 
     # Create the events table (using the schema provided by the user)
     create_table_sql = f"""
@@ -41,10 +54,22 @@ def setup_database():
         ('artx25', 'Art Exhibition', 'Display of student artwork.', 'Fine Arts Building', '2025-09-15T11:00:00', '2025-09-20T17:00:00', now)
     ]
 
-    # Insert the sample data
+    # Insert the sample data for events
     insert_sql = f"INSERT INTO {TABLE_NAME} VALUES (?, ?, ?, ?, ?, ?, ?)"
     cursor.executemany(insert_sql, sample_events)
     print(f"Inserted {len(sample_events)} sample events.")
+
+    # Sample data for students
+    sample_students = [
+        ('2023aiml345432', 'Student A', 'student.a@examplecollege.edu', 'Artificial Intelligence & Machine Learning'),
+        ('2023cse112233', 'Student B', 'student.b@examplecollege.edu', 'Computer Science Engineering'),
+        ('2022mec445566', 'Student C', 'student.c@examplecollege.edu', 'Mechanical Engineering')
+    ]
+
+    # Insert the sample student data
+    insert_students_sql = "INSERT INTO students VALUES (?, ?, ?, ?)"
+    cursor.executemany(insert_students_sql, sample_students)
+    print(f"Inserted {len(sample_students)} sample students.")
 
     # Commit changes and close the connection
     conn.commit()

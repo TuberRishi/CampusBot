@@ -4,9 +4,14 @@ from dotenv import load_dotenv
 
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_community.vectorstores import FAISS
-from langchain.agents import AgentExecutor, create_react_agent
-from langchain_core.prompts import PromptTemplate
 from langchain.tools import Tool
+from langgraph.prebuilt import ToolExecutor
+from langgraph.graph import StateGraph, END
+from typing import TypedDict, Annotated, Sequence
+import operator
+from langchain_core.messages import BaseMessage
+
+from src.tools.sql_tool import get_sql_tools
 
 # --- Load Environment Variables ---
 load_dotenv()
@@ -19,39 +24,6 @@ DEPARTMENT_MAPPING_PATH = "src/department_mapping.json"
 # This is now a DISTANCE threshold for L2 distance. Lower is better.
 # A value of 0.7 is a reasonable starting point.
 DISTANCE_THRESHOLD = 0.7
-
-# --- Agent Prompt Template ---
-AGENT_PROMPT_TEMPLATE = """
-You are a helpful and friendly AI assistant for the students of Example College.
-Your name is CampusBot. Your goal is to provide accurate answers based ONLY on the context provided by your available tools.
-
-You have access to the following tools:
-{tools}
-
-**Instructions:**
-1.  Read the user's query carefully.
-2.  Select the best tool to answer the user's query. The 'search_college_documents' tool is your primary source of information.
-3.  Synthesize an answer directly from the information returned by the tool. Do not use any prior knowledge.
-4.  If the tool returns a valid answer, provide it in a clear and concise manner.
-5.  If the tool indicates that no relevant information was found, or if you cannot find an answer in the tool's output, you MUST respond with the exact phrase: "I do not have enough information to answer that question." Do not try to guess the answer.
-6.  Be friendly and approachable in your tone.
-
-Use the following format:
-
-Question: the input question you must answer
-Thought: you should always think about what to do
-Action: the action to take, should be one of [{tool_names}]
-Action Input: the input to the action
-Observation: the result of the action
-... (this Thought/Action/Action Input/Observation can repeat N times)
-Thought: I now know the final answer
-Final Answer: the final answer to the original input question
-
-Begin!
-
-Question: {input}
-Thought:{agent_scratchpad}
-"""
 
 def load_fallback_data():
     """Loads the department mapping for the fallback mechanism."""
@@ -90,50 +62,101 @@ def create_custom_rag_tool(retriever):
         description="Searches and returns information from college documents like circulars and notices. Use it for questions about fees, deadlines, academic calendar, etc."
     )
 
+class AgentState(TypedDict):
+    """
+    Represents the state of our agent. It's a list of messages.
+    The `operator.add` in the graph transitions will append messages to this list.
+    """
+    messages: Annotated[Sequence[BaseMessage], operator.add]
+
 def create_agent_executor():
     """
-    Creates the main LangChain agent and its executor.
+    Creates the main LangGraph-based agent executor.
     """
-    print("Initializing RAG-only agent with custom tool...")
+    print("Initializing LangGraph agent...")
 
-    # 1. Initialize LLM
+    # --- Initialize Model ---
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         raise ValueError("GEMINI_API_KEY not found in environment variables.")
     llm = ChatGoogleGenerativeAI(model=LLM_MODEL_NAME, google_api_key=api_key)
     print(f"LLM '{LLM_MODEL_NAME}' initialized.")
 
-    # 2. Load the RAG retriever with MMR
+    # --- Initialize Tools ---
+    # 1. RAG Tool
     embeddings = GoogleGenerativeAIEmbeddings(model=EMBEDDING_MODEL_NAME, google_api_key=api_key)
     faiss_index = FAISS.load_local(FAISS_PATH, embeddings, allow_dangerous_deserialization=True)
-    retriever = faiss_index.as_retriever(
-        search_type="mmr",
-        search_kwargs={'k': 4, 'fetch_k': 20} # Fetch more docs for MMR to work on
+    retriever = faiss_index.as_retriever(search_type="mmr", search_kwargs={'k': 4, 'fetch_k': 20})
+    rag_tool = create_custom_rag_tool(retriever)
+
+    # 2. SQL Tools
+    sql_tools = get_sql_tools()
+
+    # 3. Combine and create the executor
+    all_tools = [rag_tool] + sql_tools
+    tool_executor = ToolExecutor(all_tools)
+    print(f"Created ToolExecutor with {len(all_tools)} tools.")
+
+    # --- Define Agent Logic as Graph Nodes ---
+
+    # Bind the tools to the LLM so it knows how to call them
+    model_with_tools = llm.bind_tools(all_tools)
+
+    def should_continue(state: AgentState):
+        """
+        Router function to decide the next step.
+        If the last message is a tool call, execute the tool. Otherwise, end.
+        """
+        last_message = state['messages'][-1]
+        if last_message.tool_calls:
+            return "continue" # Branch to the tool execution node
+        return "end" # End the graph
+
+    def call_model(state: AgentState):
+        """
+        The main agent node. Invokes the LLM with the current state.
+        The response is added to the list of messages.
+        """
+        response = model_with_tools.invoke(state['messages'])
+        return {"messages": [response]}
+
+    def call_tool(state: AgentState):
+        """
+        The tool execution node. It takes the last message, which must be a
+        tool call, executes the tool, and returns the tool's output
+        as a new ToolMessage.
+        """
+        last_message = state['messages'][-1]
+        action = last_message.tool_calls[0]
+        tool_output = tool_executor.invoke(action)
+        # The state transition will append this to the message list
+        return {"messages": [tool_output]}
+
+    # --- Build the Graph ---
+    print("Building the agent graph...")
+    workflow = StateGraph(AgentState)
+
+    # Add the nodes
+    workflow.add_node("agent", call_model)
+    workflow.add_node("action", call_tool)
+
+    # Define the entry point and edges
+    workflow.set_entry_point("agent")
+    workflow.add_conditional_edges(
+        "agent",
+        should_continue,
+        {
+            "continue": "action",
+            "end": END
+        }
     )
-    print("RAG retriever with MMR created.")
+    workflow.add_edge('action', 'agent')
 
-    # 3. Create the custom tool with the score threshold
-    custom_retriever_tool = create_custom_rag_tool(retriever)
-    all_tools = [custom_retriever_tool]
-    print("Custom RAG tool with similarity threshold created.")
+    # Compile the graph into a runnable object
+    graph = workflow.compile()
+    print("Agent graph compiled successfully.")
 
-    # 4. Create the agent prompt
-    prompt = PromptTemplate.from_template(AGENT_PROMPT_TEMPLATE)
-
-    # 5. Create the agent
-    agent = create_react_agent(llm, all_tools, prompt)
-    print("ReAct agent created.")
-
-    # 6. Create the agent executor
-    agent_executor = AgentExecutor(
-        agent=agent,
-        tools=all_tools,
-        verbose=True,
-        handle_parsing_errors=True
-    )
-    print("Agent Executor created.")
-
-    return agent_executor
+    return graph
 
 def run_agent_tests():
     """
