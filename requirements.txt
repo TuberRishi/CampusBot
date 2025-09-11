@@ -12,3 +12,4 @@ faiss-cpu
 pytest
 pytest-asyncio
 langgraph
+langchain-ollama

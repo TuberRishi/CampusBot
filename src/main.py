@@ -1,7 +1,10 @@
+import uvicorn
+import uuid
+from typing import List
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import uvicorn
+from langchain_core.messages import AIMessage, HumanMessage
 
 # Import the new LangGraph agent application
 from src.agent_v2.graph import app as agent_app
@@ -10,7 +13,7 @@ from src.agent_v2.graph import app as agent_app
 app = FastAPI(
     title="CampusBot API v2",
     description="An API for the multilingual, multi-tool college chatbot.",
-    version="2.0.0"
+    version="2.0.0",
 )
 
 # --- CORS Middleware ---
@@ -22,43 +25,48 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# --- In-Memory Session Store ---
+# NOTE: This is for demonstration only. In production, use a proper database or cache like Redis.
+session_store = {}
+
 # --- Data Models ---
 class ChatRequest(BaseModel):
     query: str
-    # The language code is now directly used by the agent graph
+    session_id: str | None = None  # Client can send a session_id to maintain context
     language: str = "en"
 
 class ChatResponse(BaseModel):
     answer: str
-    source: str # e.g., "RAG", "SQL", "External Help", "General"
+    source: str
+    session_id: str  # Server will always return a session_id
 
 # --- Startup Event ---
 @app.on_event("startup")
 def startup_event():
-    """
-    Log a message when the server starts.
-    All expensive resources are now lazy-loaded within the agent's modules.
-    """
+    """Log a message when the server starts."""
     print("Server starting up... The agent graph is ready.")
-    # You can optionally invoke the graph once to "warm it up"
-    # list(agent_app.stream({"original_query": "hello", "language": "en"}))
-    # print("Agent pre-warmed.")
-
 
 # --- API Endpoints ---
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
     """
-    Main endpoint for handling chat requests with the new LangGraph agent.
+    Main endpoint for handling chat requests. It now manages conversation history.
     """
-    print(f"Received query: '{request.query}' in language '{request.language}'")
+    session_id = request.session_id or str(uuid.uuid4())
+    print(f"Received query: '{request.query}' in session '{session_id}'")
 
-    # The initial state for the graph
-    inputs = {"original_query": request.query, "language": request.language}
+    # Retrieve chat history from the session store or create an empty list
+    chat_history = session_store.get(session_id, [])
+
+    # The initial state for the graph, now including chat history
+    inputs = {
+        "original_query": request.query,
+        "language": request.language,
+        "chat_history": chat_history,
+    }
 
     try:
         # Stream the events from the graph
-        # The final state is the last event from the stream
         final_state = None
         for event in agent_app.stream(inputs):
             final_state = event
@@ -66,19 +74,23 @@ async def chat(request: ChatRequest):
         if not final_state:
             raise HTTPException(status_code=500, detail="Agent did not produce an output.")
 
-        # The final state is a dictionary where the key is the last node that ran
-        # and the value is the AgentState. We just need the state.
         agent_state = list(final_state.values())[0]
-
         final_answer = agent_state.get("answer", "I'm sorry, something went wrong.")
         source = agent_state.get("source", "error")
 
+        # Update the history with the new user query and AI response
+        # We use HumanMessage and AIMessage to structure the history correctly
+        updated_history = chat_history + [
+            HumanMessage(content=request.query),
+            AIMessage(content=final_answer),
+        ]
+        session_store[session_id] = updated_history
+
         print(f"Final answer: '{final_answer}', Source: '{source}'")
-        return ChatResponse(answer=final_answer, source=source)
+        return ChatResponse(answer=final_answer, source=source, session_id=session_id)
 
     except Exception as e:
         print(f"Error invoking agent graph: {e}")
-        # Be careful about exposing internal errors to the client
         raise HTTPException(status_code=500, detail=f"An error occurred with the agent: {e}")
 
 if __name__ == "__main__":

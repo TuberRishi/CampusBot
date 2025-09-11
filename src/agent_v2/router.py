@@ -5,13 +5,21 @@ from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.pydantic_v1 import BaseModel, Field
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_ollama.chat_models import ChatOllama
 
 # Load environment variables
 load_dotenv()
 
-# Initialize the LLM with the API key
+# --- LLM Initialization for Router ---
+# To switch to a local Ollama model, comment out the Google LLM
+# and uncomment the Ollama LLM.
+
+# Google Gemini LLM (requires API key)
 api_key = os.getenv("GEMINI_API_KEY")
 router_llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash-latest", temperature=0, google_api_key=api_key)
+
+# Ollama LLM (local, no API key required)
+# router_llm = ChatOllama(model="llama3", temperature=0)
 
 # Define the Pydantic model for the router's output.
 # This forces the LLM to choose one of the specified datasources.

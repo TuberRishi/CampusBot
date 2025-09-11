@@ -6,6 +6,7 @@ from google.cloud import translate_v2 as translate
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable, RunnablePassthrough, RunnableBranch
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
+from langchain_ollama.chat_models import ChatOllama
 
 # Load environment variables from .env file
 load_dotenv()
@@ -19,11 +20,19 @@ except Exception as e:
     print(f"Warning: Could not initialize Google Translate client. Error: {e}")
     translate_client = None
 
-# Initialize the LLM from environment variables
+# --- LLM Initialization ---
+# To switch to a local Ollama model, comment out the Google LLM
+# and uncomment the Ollama LLM. Make sure you have Ollama running.
+# For example: `ollama run llama3`
+
+# Google Gemini LLM (requires API key)
 api_key = os.getenv("GEMINI_API_KEY")
 if not api_key:
     print("Warning: GEMINI_API_KEY not found in .env file. LLM will likely fail.")
 llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash-latest", temperature=0, google_api_key=api_key)
+
+# Ollama LLM (local, no API key required)
+# llm = ChatOllama(model="llama3", temperature=0)
 
 
 def detect_language_chain(state: Dict[str, Any]) -> Dict[str, Any]:
@@ -56,17 +65,26 @@ def detect_language_chain(state: Dict[str, Any]) -> Dict[str, Any]:
 
 # --- Query Refinement Chain ---
 
-# Prompt template for the LLM to refine the query
+def format_chat_history(chat_history: list) -> str:
+    """Formats the chat history into a string for the prompt."""
+    if not chat_history:
+        return "No history provided."
+    return "\n".join([f"{msg.type}: {msg.content}" for msg in chat_history])
+
+# A robust prompt template that works with string-formatted history
 refine_query_prompt_template = ChatPromptTemplate.from_template(
     """You are an expert in understanding and refining user queries for a university chatbot.
-Your task is to take a user's query and rephrase it into a clear, specific, and searchable English query.
+Your task is to take the "Newest user query" and, using the "Chat History" for context, rephrase it into a clear, specific, and searchable English query.
 
+- If the newest query is a standalone question, refine it as needed.
+- If the newest query is a follow-up question, use the chat history to resolve any ambiguities or pronouns (e.g., "what about for the second one?" should be refined to a specific question).
 - If the query is in a language other than English, you MUST translate it to English.
-- If the query is a simple greeting (e.g., "hello", "hi"), return it as is, in English.
-- For all other queries, refine them to be optimal for a database search or a vector store lookup.
-- Be concise and focus on the key intent.
+- If the query is a simple greeting (e.g., "hello", "hi"), just return it as is, in English.
 
-Original Query:
+Chat History:
+{chat_history_str}
+
+Newest user query:
 ```{original_query}```
 
 Refined English Query:"""
@@ -74,7 +92,11 @@ Refined English Query:"""
 
 # This is the main refinement chain that uses the LLM
 llm_refinement_chain = (
-    refine_query_prompt_template
+    {
+        "chat_history_str": lambda x: format_chat_history(x.get("chat_history", [])),
+        "original_query": lambda x: x["original_query"],
+    }
+    | refine_query_prompt_template
     | llm
     | (lambda msg: {"refined_query": msg.content})  # Extract content from AIMessage
 )
